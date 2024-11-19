@@ -1,5 +1,6 @@
 import logging
 import os
+from logging.handlers import TimedRotatingFileHandler
 
 from slack_bolt import App, BoltContext
 from slack_sdk.web import WebClient
@@ -21,6 +22,56 @@ from app.env import (
 )
 from app.slack_ui import build_home_tab
 
+# Logging Setup
+def setup_logging():
+    # Main logger
+    logger = logging.getLogger()
+    logger.setLevel(SLACK_APP_LOG_LEVEL)
+
+    # Log format
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    # Logging to a file with rotation
+    file_handler = TimedRotatingFileHandler(
+        filename="app.log",
+        when="W0",  # Rotation every week on Monday
+        interval=1,
+        backupCount=4,  # Store up to 4 archives
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.DEBUG)
+
+    # Logging to the console
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.INFO)
+
+    # Adding handlers
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    # Send logs to Sentry
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.logging import LoggingIntegration
+
+        sentry_sdk.init(
+            dsn="https://1eb8b804bc320fe9876ce7938a8f45e2@o4508324845060096.ingest.us.sentry.io/4508324846305280",  # Enter your DSN from Sentry
+            traces_sample_rate=1.0,
+            integrations=[
+                LoggingIntegration(
+                    level=logging.INFO,  # Logs sent to Sentry
+                    event_level=logging.ERROR,  # Logs that create events in Sentry
+                )
+            ],
+        )
+        logger.info("Sentry integrated successfully")
+    except ImportError:
+        logger.warning("sentry-sdk is not installed, skipping Sentry integration.")
+
+# Setting up the logs
+setup_logging()
 
 if __name__ == "__main__":
     from slack_bolt.adapter.socket_mode import SocketModeHandler
